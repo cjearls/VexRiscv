@@ -83,6 +83,7 @@ object GenCoreDefault{
       val plugins = ArrayBuffer[Plugin[VexRiscv]]()
 
       plugins ++= List(
+        new CompressionCsrPlugin(),
         if(argConfig.iCacheSize <= 0){
           new IBusSimplePlugin(
             resetVector = argConfig.resetVector,
