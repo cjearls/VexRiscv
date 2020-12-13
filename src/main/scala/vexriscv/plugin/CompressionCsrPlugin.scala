@@ -25,9 +25,9 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       }
 
       val csrService = pipeline.service(classOf[CsrInterface])
-      csrService.rw(0xB04, instructionCounter)
+      csrService.rw(0xCBF, instructionCounter)
       csrService.r(0xB05, cycleCounter)
-      csrService.onWrite(0xB06){
+      csrService.onWrite(0x8FF){
         instructionCounter := 0
       }
       csrService.onRead(0xB07){
