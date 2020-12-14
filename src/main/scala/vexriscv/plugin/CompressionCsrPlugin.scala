@@ -5,42 +5,44 @@ import spinal.lib.io.TriStateArray
 import spinal.lib.{Flow, master}
 import vexriscv.plugin.{CsrInterface, Plugin}
 import vexriscv.{DecoderService, Stageable, VexRiscv} 
-class LzwCompressor() extends BlackBox {
+class lzCompressNew() extends BlackBox {
   val io = new Bundle{
-    val clk = in Bool
+    val clock = in Bool
     val reset = in Bool
-    val stop = in Bool
-    val in_valid = in Bool
-    val out_ready = in Bool
-    val in_bits = in UInt(8 bits)
-    val in_ready = out Bool
-    val out_valid = out Bool
-    val out_bits = out UInt(9 bits)
+    val io_stop = in Bool
+    val io_in_valid = in Bool
+    val io_out_ready = in Bool
+    val io_in_bits = in UInt(8 bits)
+    val io_in_ready = out Bool
+    val io_out_valid = out Bool
+    val io_out_bits = out UInt(9 bits)
   }
 
   // map the current clock domain to the io.clk pin
-  mapClockDomain(clock=io.clk, reset=io.reset)
+  mapClockDomain(clock=io.clock, reset=io.reset)
   // Set the path to look for the necessary dependency.
   addRTLPath(s"${sys.env("VEXRISCV_ROOT")}/lzCompressNew.v")
+  noIoPrefix()
 }
 
-class LzwDecompressor() extends BlackBox {
+class lzDecompressNew() extends BlackBox {
   val io = new Bundle{
-    val clk = in Bool
+    val clock = in Bool
     val reset = in Bool
-    val in_valid = in Bool
-    val out_ready = in Bool
-    val in_bits = in UInt(9 bits)
-    val in_ready = out Bool
-    val out_valid = out Bool
-    val out_bits = out UInt(16 bits)
-    val dataOutLength = out UInt(2 bits)
+    val io_in_valid = in Bool
+    val io_out_ready = in Bool
+    val io_in_bits = in UInt(9 bits)
+    val io_in_ready = out Bool
+    val io_out_valid = out Bool
+    val io_out_bits = out UInt(16 bits)
+    val io_dataOutLength = out UInt(2 bits)
   }
 
   // map the current clock domain to the io.clk pin
-  mapClockDomain(clock=io.clk, reset=io.reset)
+  mapClockDomain(clock=io.clock, reset=io.reset)
   // Set the path to look for the necessary dependency.
   addRTLPath(s"${sys.env("VEXRISCV_ROOT")}/lzDecompressNew.v")
+  noIoPrefix()
 }
 
 // This code was copied from an example, the actual Csr for interfacing with the 
@@ -68,36 +70,31 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         instructionCounter := instructionCounter + 1
       }
 
-      val compressor = new LzwCompressor
+      val compressor = new lzCompressNew
       when(writeCompressorInputs){
-        compressor.io.stop <> compressorInputs(0)
-        compressor.io.in_valid <> compressorInputs(1)
-        compressor.io.out_ready <> compressorInputs(2)
-        compressor.io.in_bits <> (compressorInputs>>3)
+        compressor.io.io_stop <> compressorInputs(0)
+        compressor.io.io_in_valid <> compressorInputs(1)
+        compressor.io.io_out_ready <> compressorInputs(2)
+        compressor.io.io_in_bits <> (compressorInputs>>3)
       }.otherwise{
-        compressor.io.stop <> Bool(false)
-        compressor.io.in_valid <> Bool(false)
-        compressor.io.out_ready <> Bool(false)
-        compressor.io.in_bits <> 0
+        compressor.io.io_stop <> Bool(false)
+        compressor.io.io_in_valid <> Bool(false)
+        compressor.io.io_out_ready <> Bool(false)
+        compressor.io.io_in_bits <> 0
       }
-      compressorOutputs := Cat(compressor.io.out_bits, compressor.io.out_valid, compressor.io.in_ready)
-      /*
-      compressor.io.in_ready <> compressorOutputs(0)
-      compressor.io.out_valid <> compressorOutputs(1)
-      compressor.io.out_bits <> compressorOutputs>>2
-      */
+      compressorOutputs := Cat(compressor.io.io_out_bits, compressor.io.io_out_valid, compressor.io.io_in_ready).asUInt
 
-      val decompressor = new LzwDecompressor
+      val decompressor = new lzDecompressNew
       when(writeDecompressorInputs){
-        decompressor.io.in_valid <> decompressorInputs(0)
-        decompressor.io.out_ready <> decompressorInputs(1)
-        decompressor.io.in_bits <> (decompressorInputs>>2)
+        decompressor.io.io_in_valid <> decompressorInputs(0)
+        decompressor.io.io_out_ready <> decompressorInputs(1)
+        decompressor.io.io_in_bits <> (decompressorInputs>>2)
       }.otherwise{
-        decompressor.io.in_valid <> Bool(false)
-        decompressor.io.out_ready <> Bool(false)
-        decompressor.io.in_bits <> 0
+        decompressor.io.io_in_valid <> Bool(false)
+        decompressor.io.io_out_ready <> Bool(false)
+        decompressor.io.io_in_bits <> 0
       }
-      decompressorOutputs := Cat(decompressor.io.dataOutLength, decompressor.io.out_bits, decompressor.io.out_valid, decompressor.io.in_ready).asUInt
+      decompressorOutputs := Cat(decompressor.io.io_dataOutLength, decompressor.io.io_out_bits, decompressor.io.io_out_valid, decompressor.io.io_in_ready).asUInt
 
       val csrService = pipeline.service(classOf[CsrInterface])
       csrService.rw(0x8FC, compressorInputs)
