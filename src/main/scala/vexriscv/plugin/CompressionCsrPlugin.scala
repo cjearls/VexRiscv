@@ -4,8 +4,7 @@ import spinal.core._
 import spinal.lib.io.TriStateArray
 import spinal.lib.{Flow, master}
 import vexriscv.plugin.{CsrInterface, Plugin}
-import vexriscv.{DecoderService, Stageable, VexRiscv}
-
+import vexriscv.{DecoderService, Stageable, VexRiscv} 
 class LzwCompressor() extends BlackBox {
   val io = new Bundle{
     val clk = in Bool
@@ -56,9 +55,9 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       val cycleCounter = Reg(UInt(32 bits))
       // When you write to the compressor or decompressor inputs, it sends that input to the compressor or decompressor 
       // for one clock cycle.
-      val compressorInputs = Reg(UInt(32 bits))
+      val compressorInputs = Reg(UInt(11 bits))
       val compressorOutputs = Reg(UInt(32 bits))
-      val decompressorInputs = Reg(UInt(32 bits))
+      val decompressorInputs = Reg(UInt(11 bits))
       val decompressorOutputs = Reg(UInt(32 bits))
       // These registers determine whether the compressor or decompressor inputs are written.
       val writeCompressorInputs = Reg(Bool)
@@ -70,11 +69,30 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       }
 
       val compressor = new LzwCompressor
+      when(writeCompressorInputs){
+        compressor.io.stop <> compressorInputs(0)
+        compressor.io.in_valid <> compressorInputs(1)
+        compressor.io.out_ready <> compressorInputs(2)
+        compressor.io.in_bits <> (compressorInputs>>3)
+      }.otherwise{
+        compressor.io.stop <> Bool(false)
+        compressor.io.in_valid <> Bool(false)
+        compressor.io.out_ready <> Bool(false)
+        compressor.io.in_bits <> 0
+      }
+
       val decompressor = new LzwDecompressor
+      when(writeDecompressorInputs){
+        decompressor.io.in_valid <> decompressorInputs(0)
+        decompressor.io.out_ready <> decompressorInputs(1)
+        decompressor.io.in_bits <> (decompressorInputs>>2)
+      }.otherwise{
+        decompressor.io.in_valid <> Bool(false)
+        decompressor.io.out_ready <> Bool(false)
+        decompressor.io.in_bits <> 0
+      }
 
       val csrService = pipeline.service(classOf[CsrInterface])
-      csrService.rw(0x8FF, cycleCounter)
-      csrService.rw(0x8FE, instructionCounter)
       csrService.rw(0x8FA, compressorInputs)
       writeCompressorInputs := Bool(false)
       csrService.onWrite(0x8FA){
@@ -87,6 +105,8 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         writeDecompressorInputs := Bool(true)
       }
       csrService.rw(0x8FD, decompressorOutputs)
+      csrService.rw(0x8FE, instructionCounter)
+      csrService.rw(0x8FF, cycleCounter)
     }
   }
 }
