@@ -26,8 +26,8 @@ void writeDecompressorInputs(bool inValid, bool outReady, unsigned int inBits){
 struct compressorOutputs readCompressorOutputs(){
 	struct compressorOutputs outputs;
 	unsigned int rawData = csr_read(0xCFE);
-	outputs.inReady = 1 | rawData;
-	outputs.outValid = 1 | (rawData >> 1);
+	outputs.inReady = 1 & rawData;
+	outputs.outValid = 1 & (rawData >> 1);
 	outputs.outBits = rawData >> 2;
 	return outputs;
 }
@@ -35,24 +35,32 @@ struct compressorOutputs readCompressorOutputs(){
 struct decompressorOutputs readDecompressorOutputs(){
 	struct decompressorOutputs outputs;
 	unsigned int rawData = csr_read(0xCFF);
-	outputs.inReady = 1 | rawData;
-	outputs.outValid = 1 | (rawData >> 1);
-	outputs.outBits = ((1<<16)-1) | (rawData >> 2);
+	outputs.inReady = 1 & rawData;
+	outputs.outValid = 1 & (rawData >> 1);
+	outputs.outBits = ((1<<16)-1) & (rawData >> 2);
 	outputs.dataOutLength = rawData >> 18;
 	return outputs;
+}
+
+int resetCompressor(){
+	return csr_read(0xCED);
+}
+
+int resetDecompressor(){
+	return csr_read(0xCEE);
 }
 
 int main() {
 	// This reads the instruction count register.
 	printf("Hello World!\n");
-	printf("The current cycle count is %d, and the current instruction count is %d", csr_read(0x8FF), csr_read(0x8FE));
+	printf("The current cycle count is %d, and the current instruction count is %d\n", csr_read(0x8FF), csr_read(0x8FE));
 	csr_write(0x8FF, 0);
 	int cycle1 = csr_read(0x8FF);
 	int cycle2 = csr_read(0x8FF);
 	csr_write(0x8FE, 0);
 	int instruction1 = csr_read(0x8FE);
 	int instruction2= csr_read(0x8FE);
-	printf("Cycle1: %d\nCycle2: %d\nTime1: %d\nTime2: %d\n Cycle difference: %d, Time difference: %d\n", cycle1, cycle2, instruction1, instruction2, cycle2-cycle1, instruction2-instruction1);
+	printf("Cycle1: %d\nCycle2: %d\nInstruction1: %d\nInstruction2: %d\n Cycle difference: %d, Instruction difference: %d\n", cycle1, cycle2, instruction1, instruction2, cycle2-cycle1, instruction2-instruction1);
 
 	// reading outputs from compressor and decompressor
 	printf("compressor: inready=%d, outvalid=%d, outbits=%d\ndecompressor: inready=%d, outvalid=%d, outbits=%d, dataoutlength=%d\n",
@@ -63,6 +71,9 @@ int main() {
 	readDecompressorOutputs().outValid,
 	readDecompressorOutputs().outBits,
 	readDecompressorOutputs().dataOutLength);
+
+	printf("compressor reset = %d\n", resetCompressor());
+	printf("decompressor reset = %d\n", resetDecompressor());
 
 	return 0;
 }

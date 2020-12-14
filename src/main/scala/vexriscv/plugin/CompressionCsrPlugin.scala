@@ -19,7 +19,7 @@ class lzCompressNew() extends BlackBox {
   }
 
   // map the current clock domain to the io.clk pin
-  mapClockDomain(clock=io.clock, reset=io.reset)
+  mapClockDomain(clock=io.clock)
   // Set the path to look for the necessary dependency.
   addRTLPath(s"${sys.env("VEXRISCV_ROOT")}/lzCompressNew.v")
   noIoPrefix()
@@ -39,7 +39,7 @@ class lzDecompressNew() extends BlackBox {
   }
 
   // map the current clock domain to the io.clk pin
-  mapClockDomain(clock=io.clock, reset=io.reset)
+  mapClockDomain(clock=io.clock)
   // Set the path to look for the necessary dependency.
   addRTLPath(s"${sys.env("VEXRISCV_ROOT")}/lzDecompressNew.v")
   noIoPrefix()
@@ -64,6 +64,8 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       // These registers determine whether the compressor or decompressor inputs are written.
       val writeCompressorInputs = Reg(Bool)
       val writeDecompressorInputs = Reg(Bool)
+      val compressorResetSignal = Reg(Bool)
+      val decompressorResetSignal = Reg(Bool)
 
       cycleCounter := cycleCounter + 1
       when(writeBack.arbitration.isFiring) {
@@ -82,6 +84,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         compressor.io.io_out_ready <> Bool(false)
         compressor.io.io_in_bits <> 0
       }
+      compressorResetSignal <> compressor.io.reset
       compressorOutputs := Cat(compressor.io.io_out_bits, compressor.io.io_out_valid, compressor.io.io_in_ready).asUInt
 
       val decompressor = new lzDecompressNew
@@ -94,6 +97,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         decompressor.io.io_out_ready <> Bool(false)
         decompressor.io.io_in_bits <> 0
       }
+      decompressorResetSignal <> decompressor.io.reset
       decompressorOutputs := Cat(decompressor.io.io_dataOutLength, decompressor.io.io_out_bits, decompressor.io.io_out_valid, decompressor.io.io_in_ready).asUInt
 
       val csrService = pipeline.service(classOf[CsrInterface])
@@ -111,6 +115,24 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       csrService.r(0xCFF, decompressorOutputs)
       csrService.rw(0x8FE, instructionCounter)
       csrService.rw(0x8FF, cycleCounter)
+
+      val pointlessRegister = Reg(UInt(32 bits))
+      pointlessRegister := 0
+
+      // Reading these registers resets the compressor and decompressor, respectively
+      csrService.r(0xCED, pointlessRegister)
+      csrService.r(0xCEE, pointlessRegister)
+      
+      // Reset the  compressor
+      compressorResetSignal := Bool(false)
+      decompressorResetSignal := Bool(false)
+      csrService.onRead(0xCED){
+        compressorResetSignal := Bool(true) 
+      }
+      // Reset the decompressor
+      csrService.onRead(0xCEE){
+        decompressorResetSignal := Bool(true) 
+      }
     }
   }
 }
