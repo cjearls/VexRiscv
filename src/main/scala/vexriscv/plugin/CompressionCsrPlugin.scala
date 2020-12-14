@@ -80,7 +80,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         compressor.io.out_ready <> Bool(false)
         compressor.io.in_bits <> 0
       }
-      compressorOutputs := 0
+      compressorOutputs := Cat(compressor.io.out_bits, compressor.io.out_valid, compressor.io.in_ready)
       /*
       compressor.io.in_ready <> compressorOutputs(0)
       compressor.io.out_valid <> compressorOutputs(1)
@@ -97,14 +97,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         decompressor.io.out_ready <> Bool(false)
         decompressor.io.in_bits <> 0
       }
-      decompressorOutputs := 0
-      //decompressor.io.dataOutLength ## decompressor.io.out_bits ## decompressor.io.out_valid ## decompressor.io.in_ready
-      /*
-      decompressor.io.in_ready <> decompressorOutputs(0)
-      decompressor.io.out_valid <> decompressorOutputs(1)
-      decompressor.io.out_bits <> decompressorOutputs(17 downto 2)
-      decompressor.io.dataOutLength <> decompressorOutputs(19 downto 18)
-      */
+      decompressorOutputs := Cat(decompressor.io.dataOutLength, decompressor.io.out_bits, decompressor.io.out_valid, decompressor.io.in_ready).asUInt
 
       val csrService = pipeline.service(classOf[CsrInterface])
       csrService.rw(0x8FC, compressorInputs)
