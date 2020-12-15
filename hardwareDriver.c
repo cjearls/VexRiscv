@@ -4,7 +4,7 @@
 
 #define CHARACTERS 4096
 #define CHARACTER_BITS 8
-#define DEBUG false
+#define DEBUG true
 
 struct compressorOutputs
 {
@@ -107,8 +107,14 @@ int main()
 		   readDecompressorOutputs().outBits,
 		   readDecompressorOutputs().dataOutLength);
 
+
 	FILE *filePointer;
 	filePointer = fopen("lzTestFile.txt", "rb");
+	if (filePointer == NULL)
+	{
+		printf("Error, filepointer is null\n");
+		return -1;
+	}
 
 	char inCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
@@ -193,6 +199,8 @@ int main()
 
 		size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
 	}
+
+	fclose(filePointer);
 
 	return 0;
 }

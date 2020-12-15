@@ -1,1 +1,1 @@
-riscv64-unknown-elf-gcc hardwareDriver.c -o $LINUX_ON_LITEX_ROOT/buildroot/board/litex_vexriscv/rootfs_overlay/root/hardwareDriver -O3 -march=rv32im -mabi=ilp32
+/home/cjearls/temp/riscv32-buildroot-linux-gnu_sdk-buildroot/bin/riscv32-linux-gcc hardwareDriver.c -o $LINUX_ON_LITEX_ROOT/buildroot/board/litex_vexriscv/rootfs_overlay/root/hardwareDriver -O3 -march=rv32im -mabi=ilp32
