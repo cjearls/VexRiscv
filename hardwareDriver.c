@@ -107,79 +107,91 @@ int main()
 		   readDecompressorOutputs().outBits,
 		   readDecompressorOutputs().dataOutLength);
 
-	printf("compressor reset = %d\n", resetCompressor());
-	printf("decompressor reset = %d\n", resetDecompressor());
+	FILE *filePointer;
+	filePointer = fopen("lzTestFile.txt", "rb");
 
 	char inCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
-	// This is the easiest compression to perform, all zeroes.
-	for (size_t index = 0; index < CHARACTERS; index++)
+	size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
+	while (readBytes == CHARACTERS)
 	{
-		inCharacterArray[index] = 0;
-	}
-
-	// This sets the output array to all incorrect values so it will be obvious if a value isn't written or is written
-	// wrong later when the check is done.
-	for (size_t index = 0; index < CHARACTERS; index++)
-	{
-		outCharacterArray[index] = 7;
-	}
-
-	// This is used to iterate through all the input characters and put them into the compressor.
-	size_t currentInCharacterIndex = 0;
-	// This is used to iterate through all the output characters and put them into the output array.
-	size_t currentOutCharacterIndex = 0;
-
-	writeCycles(0);
-	writeInstructions(0);
-	size_t compressorCycleLatency = readCycles();
-	size_t compressorInstructionLatency = readInstructions();
-
-	while (currentInCharacterIndex < CHARACTERS)
-	{
-		struct compressorOutputs compOut = readCompressorOutputs();
-		struct decompressorOutputs decompOut = readDecompressorOutputs();
-
-		// Feed in the next character to the compressor input
-		if (compOut.inReady)
+		// This sets the output array to all incorrect values so it will be obvious if a value isn't written or is written
+		// wrong later when the check is done.
+		for (size_t index = 0; index < CHARACTERS; index++)
 		{
-#if DEBUG
-			printf("Inputting %d to compressor\n", inCharacterArray[currentInCharacterIndex]);
-#endif
-			writeCompressorInputs(false, true, false, inCharacterArray[currentInCharacterIndex]);
-			currentInCharacterIndex++;
+			outCharacterArray[index] = 7;
 		}
-		else if (compOut.outValid && decompOut.inReady)
+
+		printf("compressor reset = %d\n", resetCompressor());
+		printf("decompressor reset = %d\n", resetDecompressor());
+
+		// This is used to iterate through all the input characters and put them into the compressor.
+		size_t currentInCharacterIndex = 0;
+		// This is used to iterate through all the output characters and put them into the output array.
+		size_t currentOutCharacterIndex = 0;
+
+		writeCycles(0);
+		writeInstructions(0);
+		size_t compressorCycleLatency = readCycles();
+		size_t compressorInstructionLatency = readInstructions();
+
+		while (currentOutCharacterIndex < CHARACTERS)
 		{
-#if DEBUG
-			printf("compressor out and decompressor input is %d\n", compOut.outBits);
-#endif
-			writeCompressorInputs(false, false, true, 0);
-			writeDecompressorInputs(true, false, compOut.outBits);
-		}
-		else if (decompOut.outValid)
-		{
-#if DEBUG
-			printf("decompressor output is valid, outputting bits %d of dataOutLength %d\n", decompOut.outBits, decompOut.dataOutLength);
-#endif
-			writeDecompressorInputs(false, true, 0);
-			for (size_t index = 0; index < decompOut.dataOutLength; index++)
+			struct compressorOutputs compOut = readCompressorOutputs();
+			struct decompressorOutputs decompOut = readDecompressorOutputs();
+
+			// Feed in the next character to the compressor input
+			if (compOut.inReady && currentInCharacterIndex < CHARACTERS)
 			{
-				outCharacterArray[currentOutCharacterIndex] = decompOut.outBits >> (CHARACTER_BITS * (decompOut.dataOutLength - 1 - index));
-				currentOutCharacterIndex++;
+#if DEBUG
+				printf("Inputting %d to compressor\n", inCharacterArray[currentInCharacterIndex]);
+#endif
+				writeCompressorInputs(false, true, false, inCharacterArray[currentInCharacterIndex]);
+				currentInCharacterIndex++;
+			}
+			else if (compOut.outValid && decompOut.inReady)
+			{
+#if DEBUG
+				printf("compressor out and decompressor input is %d\n", compOut.outBits);
+#endif
+				writeCompressorInputs(false, false, true, 0);
+				writeDecompressorInputs(true, false, compOut.outBits);
+			}
+			else if (currentInCharacterIndex >= CHARACTERS && !compOut.outValid && decompOut.inReady)
+			{
+				// This moves the compressor into the "stopSignalReceived" state where it outputs any remaining characters
+				// in its buffer.
+				writeCompressorInputs(true, false, false, 0);
+			}
+			else if (decompOut.outValid)
+			{
+#if DEBUG
+				printf("decompressor output is valid, outputting bits %d of dataOutLength %d\n", decompOut.outBits, decompOut.dataOutLength);
+#endif
+				writeDecompressorInputs(false, true, 0);
+				for (size_t index = 0; index < decompOut.dataOutLength; index++)
+				{
+					outCharacterArray[currentOutCharacterIndex] = decompOut.outBits >> (CHARACTER_BITS * (decompOut.dataOutLength - 1 - index));
+					currentOutCharacterIndex++;
+				}
 			}
 		}
-	}
-	compressorCycleLatency = readCycles() - compressorCycleLatency;
-	compressorInstructionLatency = readInstructions() - compressorInstructionLatency;
 
-	printf("compressor cycle latency was %d, and instruction latency was %d\n", compressorCycleLatency, compressorInstructionLatency);
+		compressorCycleLatency = readCycles() - compressorCycleLatency;
+		compressorInstructionLatency = readInstructions() - compressorInstructionLatency;
 
-	// This checks if the input equals the output, and prints if they are unequal.
-	for(size_t index = 0; index < CHARACTERS; index++){
-		if(inCharacterArray[index] != outCharacterArray[index]){
-			printf("Array index %d does not match: in=%d, out=%d\n", index, inCharacterArray[index], outCharacterArray[index]);
+		printf("compressor cycle latency was %d, and instruction latency was %d\n", compressorCycleLatency, compressorInstructionLatency);
+
+		// This checks if the input equals the output, and prints if they are unequal.
+		for (size_t index = 0; index < CHARACTERS; index++)
+		{
+			if (inCharacterArray[index] != outCharacterArray[index])
+			{
+				printf("Array index %d does not match: in=%d, out=%d\n", index, inCharacterArray[index], outCharacterArray[index]);
+			}
 		}
+
+		size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
 	}
 
 	return 0;

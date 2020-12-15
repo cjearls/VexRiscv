@@ -66,6 +66,8 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       val writeDecompressorInputs = Reg(Bool)
       val compressorResetSignal = Reg(Bool)
       val decompressorResetSignal = Reg(Bool)
+      // This register is needed to keep the "stop" signal asserted once it is asserted for the first time so the output values can be read.
+      val stopSignalReceived = Reg(Bool)
 
       cycleCounter := cycleCounter + 1
       when(writeBack.arbitration.isFiring) {
@@ -73,7 +75,14 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       }
 
       val compressor = new lzCompressNew
-      when(writeCompressorInputs){
+      when(stopSignalReceived){
+        compressor.io.io_stop <> Bool(true)
+        compressor.io.io_in_valid <> Bool(false)
+        compressor.io.io_out_ready <> Bool(false)
+        compressor.io.io_in_bits <> 0
+      }
+      .elsewhen(writeCompressorInputs){
+        stopSignalReceived := compressorInputs(0)
         compressor.io.io_stop <> compressorInputs(0)
         compressor.io.io_in_valid <> compressorInputs(1)
         compressor.io.io_out_ready <> compressorInputs(2)
@@ -128,6 +137,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       decompressorResetSignal := Bool(false)
       csrService.onRead(0xCED){
         compressorResetSignal := Bool(true) 
+        stopSignalReceived := Bool(false)
       }
       // Reset the decompressor
       csrService.onRead(0xCEE){
