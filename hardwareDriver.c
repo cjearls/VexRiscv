@@ -4,6 +4,7 @@
 
 #define CHARACTERS 4096
 #define CHARACTER_BITS 8
+#define DEBUG false
 
 struct compressorOutputs
 {
@@ -20,17 +21,17 @@ struct decompressorOutputs
 	size_t dataOutLength;
 };
 
-void writeCompressorInputs(bool stop, bool inValid, bool outReady, size_t inBits)
+static inline void writeCompressorInputs(bool stop, bool inValid, bool outReady, size_t inBits)
 {
 	csr_write(0x8FC, stop | (inValid << 1) | (outReady << 2) | (inBits << 3));
 }
 
-void writeDecompressorInputs(bool inValid, bool outReady, size_t inBits)
+static inline void writeDecompressorInputs(bool inValid, bool outReady, size_t inBits)
 {
 	csr_write(0x8FD, inValid | (outReady << 1) | (inBits << 2));
 }
 
-struct compressorOutputs readCompressorOutputs()
+static inline struct compressorOutputs readCompressorOutputs()
 {
 	struct compressorOutputs outputs;
 	size_t rawData = csr_read(0xCFE);
@@ -40,7 +41,7 @@ struct compressorOutputs readCompressorOutputs()
 	return outputs;
 }
 
-struct decompressorOutputs readDecompressorOutputs()
+static inline struct decompressorOutputs readDecompressorOutputs()
 {
 	struct decompressorOutputs outputs;
 	size_t rawData = csr_read(0xCFF);
@@ -51,27 +52,49 @@ struct decompressorOutputs readDecompressorOutputs()
 	return outputs;
 }
 
-int resetCompressor()
+static inline size_t resetCompressor()
 {
+	// The hardware is configured such that reading from this csr activates the reset signal.
 	return csr_read(0xCED);
 }
 
-int resetDecompressor()
+static inline size_t resetDecompressor()
 {
+	// The hardware is configured such that reading from this csr activates the reset signal.
 	return csr_read(0xCEE);
+}
+
+static inline size_t readCycles()
+{
+	return csr_read(0x8FF);
+}
+
+static inline size_t readInstructions()
+{
+	return csr_read(0x8FE);
+}
+
+static inline void writeCycles(size_t newValue)
+{
+	return csr_write(0x8FF, newValue);
+}
+
+static inline void writeInstructions(size_t newValue)
+{
+	return csr_write(0x8FE, newValue);
 }
 
 int main()
 {
 	// This reads the instruction count register.
 	printf("Hello World!\n");
-	printf("The current cycle count is %d, and the current instruction count is %d\n", csr_read(0x8FF), csr_read(0x8FE));
-	csr_write(0x8FF, 0);
-	int cycle1 = csr_read(0x8FF);
-	int cycle2 = csr_read(0x8FF);
-	csr_write(0x8FE, 0);
-	int instruction1 = csr_read(0x8FE);
-	int instruction2 = csr_read(0x8FE);
+	printf("The current cycle count is %d, and the current instruction count is %d\n", readCycles(), readInstructions());
+	writeCycles(0);
+	int cycle1 = readCycles();
+	int cycle2 = readCycles();
+	writeInstructions(0);
+	int instruction1 = readInstructions();
+	int instruction2 = readInstructions();
 	printf("Cycle1: %d\nCycle2: %d\nInstruction1: %d\nInstruction2: %d\n Cycle difference: %d, Instruction difference: %d\n", cycle1, cycle2, instruction1, instruction2, cycle2 - cycle1, instruction2 - instruction1);
 
 	// reading outputs from compressor and decompressor
@@ -95,10 +118,23 @@ int main()
 		inCharacterArray[index] = 0;
 	}
 
+	// This sets the output array to all incorrect values so it will be obvious if a value isn't written or is written
+	// wrong later when the check is done.
+	for (size_t index = 0; index < CHARACTERS; index++)
+	{
+		outCharacterArray[index] = 7;
+	}
+
 	// This is used to iterate through all the input characters and put them into the compressor.
 	size_t currentInCharacterIndex = 0;
 	// This is used to iterate through all the output characters and put them into the output array.
 	size_t currentOutCharacterIndex = 0;
+
+	writeCycles(0);
+	writeInstructions(0);
+	size_t compressorCycleLatency = readCycles();
+	size_t compressorInstructionLatency = readInstructions();
+
 	while (currentInCharacterIndex < CHARACTERS)
 	{
 		struct compressorOutputs compOut = readCompressorOutputs();
@@ -107,25 +143,42 @@ int main()
 		// Feed in the next character to the compressor input
 		if (compOut.inReady)
 		{
+#if DEBUG
 			printf("Inputting %d to compressor\n", inCharacterArray[currentInCharacterIndex]);
+#endif
 			writeCompressorInputs(false, true, false, inCharacterArray[currentInCharacterIndex]);
 			currentInCharacterIndex++;
 		}
 		else if (compOut.outValid && decompOut.inReady)
 		{
-			printf("compressor out and decompressor input is %d", compOut.outBits);
+#if DEBUG
+			printf("compressor out and decompressor input is %d\n", compOut.outBits);
+#endif
 			writeCompressorInputs(false, false, true, 0);
 			writeDecompressorInputs(true, false, compOut.outBits);
 		}
 		else if (decompOut.outValid)
 		{
-			printf("decompressor output is valid, outputting bits %d of dataOutLength %d", decompOut.outBits, decompOut.dataOutLength);
+#if DEBUG
+			printf("decompressor output is valid, outputting bits %d of dataOutLength %d\n", decompOut.outBits, decompOut.dataOutLength);
+#endif
 			writeDecompressorInputs(false, true, 0);
 			for (size_t index = 0; index < decompOut.dataOutLength; index++)
 			{
-				outCharacterArray[currentOutCharacterIndex + index] = decompOut.outBits >> (CHARACTER_BITS * (decompOut.dataOutLength - 1 - index));
+				outCharacterArray[currentOutCharacterIndex] = decompOut.outBits >> (CHARACTER_BITS * (decompOut.dataOutLength - 1 - index));
 				currentOutCharacterIndex++;
 			}
+		}
+	}
+	compressorCycleLatency = readCycles() - compressorCycleLatency;
+	compressorInstructionLatency = readInstructions() - compressorInstructionLatency;
+
+	printf("compressor cycle latency was %d, and instruction latency was %d\n", compressorCycleLatency, compressorInstructionLatency);
+
+	// This checks if the input equals the output, and prints if they are unequal.
+	for(size_t index = 0; index < CHARACTERS; index++){
+		if(inCharacterArray[index] != outCharacterArray[index]){
+			printf("Array index %d does not match: in=%d, out=%d\n", index, inCharacterArray[index], outCharacterArray[index]);
 		}
 	}
 
