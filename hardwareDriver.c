@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "src/main/c/emulator/src/riscv.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 #define CHARACTERS 4096
 #define CHARACTER_BITS 8
@@ -80,7 +81,7 @@ int main()
 	}
 
 	char inCharacterArray[CHARACTERS];
-	size_t intermediateCharacterArray[CHARACTERS];
+	int16_t intermediateCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
 	size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
 	/*while (readBytes == CHARACTERS)

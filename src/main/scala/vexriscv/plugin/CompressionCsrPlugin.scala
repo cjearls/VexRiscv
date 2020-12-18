@@ -61,7 +61,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       val compressorInputs = Reg(UInt(8 bits))
       val compressorOutputs = UInt(9 bits)
       val decompressorInputs = Reg(UInt(9 bits))
-      val decompressorOutputs = UInt(16 bits)
+      val decompressorOutputs = UInt(8 bits)
       // These registers determine whether the compressor or decompressor inputs are written.
       val writeCompressorInputs = Reg(Bool)
       val writeDecompressorInputs = Reg(Bool)
@@ -83,7 +83,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       val compressorInputBuffer = Mem(UInt(8 bits), byteNumber)
       val compressorOutputBuffer = Mem(UInt(9 bits), byteNumber)
       val decompressorInputBuffer = Mem(UInt(9 bits), byteNumber)
-      val decompressorOutputBuffer = Mem(UInt(16 bits), byteNumber)
+      val decompressorOutputBuffer = Mem(UInt(8 bits), byteNumber)
 
       cycleCounter := cycleCounter + 1
       when(writeBack.arbitration.isFiring) {
@@ -111,7 +111,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
 
       // This takes care of getting output data from compressor and putting into the output buffer.
       compressor.io.io_out_ready <> Bool(true)
-      when(compressor.io.io_out_valid){
+      when(compressor.io.io_out_valid && compressorOutputAccessIndex < byteNumber){
         compressorOutputBuffer(compressorOutputAccessIndex(11 downto 0)) := compressor.io.io_out_bits
         compressorOutputAccessIndex := compressorOutputAccessIndex + 1
       }
@@ -122,8 +122,8 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
 
       val decompressor = new lzDecompressNew
       // This takes care of writing the data to the decompressor input buffer.
-      when(writeDecompressorInputs && decompressorOutputIndex < byteNumber){
-        decompressorInputBuffer(decompressorInputIndex(11 downto 0)) := decompressorInputs
+      when(writeDecompressorInputs && decompressorInputIndex < byteNumber){
+        decompressorInputBuffer.write(decompressorInputIndex(11 downto 0), decompressorInputs)
         decompressorInputIndex := decompressorInputIndex + 1
       }
 
@@ -140,9 +140,15 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
 
       // This takes care of getting output data from decompressor and putting into the output buffer.
       decompressor.io.io_out_ready <> Bool(true)
-      when(decompressor.io.io_out_valid){
-        decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits
-        decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
+      when(decompressor.io.io_out_valid && decompressorOutputAccessIndex < byteNumber){
+        when(decompressor.io.io_dataOutLength === 1){
+          decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits(7 downto 0)
+          decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
+        }.elsewhen(decompressor.io.io_dataOutLength === 2){
+          decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits(15 downto 8)
+          decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0) + 1) := decompressor.io.io_out_bits(7 downto 0)
+          decompressorOutputAccessIndex := decompressorOutputAccessIndex + 2
+        }
       }
 
       // This sets the decompressor output to the current index in the output buffer
@@ -173,7 +179,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       }
       // This allows reading the decompressor's outputs.
       csrService.r(0xCFF, decompressorOutputs)
-      csrService.onRead(0xCFE){
+      csrService.onRead(0xCFF){
         decompressorOutputIndex := decompressorOutputIndex + 1
       }
 
