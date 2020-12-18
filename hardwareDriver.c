@@ -102,7 +102,7 @@ int main()
 		size_t compressorCycleLatency = readCycles();
 		size_t compressorInstructionLatency = readInstructions();
 
-		for(size_t index = 0; index < CHARACTERS; index++){
+		for(size_t index = 0; index < CHARACTERS/4; index++){
 			writeCompressorInputs(inCharacterArray[index]);
 		}
 
@@ -136,9 +136,9 @@ int main()
 		// This checks if the input equals the output, and prints if they are unequal.
 		for (size_t index = 0; index < CHARACTERS/4; index++)
 		{
-			if (inCharacterArray[index] != ((outCharacterArray[index]<<(3*CHARACTER_BITS)) | (outCharacterArray[index+1]<<(2*CHARACTER_BITS)) | (outCharacterArray[index+2]<<(1*CHARACTER_BITS)) | (outCharacterArray[index+3]<<0)))
+			if (inCharacterArray[index] != ((outCharacterArray[index*4]<<(3*CHARACTER_BITS)) | (outCharacterArray[index*4+1]<<(2*CHARACTER_BITS)) | (outCharacterArray[index*4+2]<<(1*CHARACTER_BITS)) | (outCharacterArray[index*4+3]<<0)))
 			{
-				printf("Array index %d does not match: in=%d, out=%d\n", index, inCharacterArray[index], outCharacterArray[index]);
+				printf("Array index %d does not match: in=%X, out=%X\n", index, inCharacterArray[index], ((outCharacterArray[index*4]<<(3*CHARACTER_BITS)) | (outCharacterArray[index*4+1]<<(2*CHARACTER_BITS)) | (outCharacterArray[index*4+2]<<(1*CHARACTER_BITS)) | (outCharacterArray[index*4+3]<<0)));
 			}
 		}
 /*
