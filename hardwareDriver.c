@@ -6,50 +6,24 @@
 #define CHARACTER_BITS 8
 #define DEBUG true
 
-struct compressorOutputs
+static inline void writeCompressorInputs(size_t inBits)
 {
-	bool inReady;
-	bool outValid;
-	size_t outBits;
-};
-
-struct decompressorOutputs
-{
-	bool inReady;
-	bool outValid;
-	size_t outBits;
-	size_t dataOutLength;
-};
-
-static inline void writeCompressorInputs(bool stop, bool inValid, bool outReady, size_t inBits)
-{
-	csr_write(0x8FC, stop | (inValid << 1) | (outReady << 2) | (inBits << 3));
+	csr_write(0x8FC, inBits);
 }
 
-static inline void writeDecompressorInputs(bool inValid, bool outReady, size_t inBits)
+static inline void writeDecompressorInputs(size_t inBits)
 {
-	csr_write(0x8FD, inValid | (outReady << 1) | (inBits << 2));
+	csr_write(0x8FD, inBits);
 }
 
-static inline struct compressorOutputs readCompressorOutputs()
+static inline size_t readCompressorOutputs()
 {
-	struct compressorOutputs outputs;
-	size_t rawData = csr_read(0xCFE);
-	outputs.inReady = 1 & rawData;
-	outputs.outValid = 1 & (rawData >> 1);
-	outputs.outBits = rawData >> 2;
-	return outputs;
+	return csr_read(0xCFE);
 }
 
-static inline struct decompressorOutputs readDecompressorOutputs()
+static inline size_t readDecompressorOutputs()
 {
-	struct decompressorOutputs outputs;
-	size_t rawData = csr_read(0xCFF);
-	outputs.inReady = 1 & rawData;
-	outputs.outValid = 1 & (rawData >> 1);
-	outputs.outBits = ((1 << 16) - 1) & (rawData >> 2);
-	outputs.dataOutLength = rawData >> 18;
-	return outputs;
+	return csr_read(0xCFF);
 }
 
 static inline size_t resetCompressor()
@@ -97,17 +71,6 @@ int main()
 	int instruction2 = readInstructions();
 	printf("Cycle1: %d\nCycle2: %d\nInstruction1: %d\nInstruction2: %d\n Cycle difference: %d, Instruction difference: %d\n", cycle1, cycle2, instruction1, instruction2, cycle2 - cycle1, instruction2 - instruction1);
 
-	// reading outputs from compressor and decompressor
-	printf("compressor: inready=%d, outvalid=%d, outbits=%d\ndecompressor: inready=%d, outvalid=%d, outbits=%d, dataoutlength=%d\n",
-		   readCompressorOutputs().inReady,
-		   readCompressorOutputs().outValid,
-		   readCompressorOutputs().outBits,
-		   readDecompressorOutputs().inReady,
-		   readDecompressorOutputs().outValid,
-		   readDecompressorOutputs().outBits,
-		   readDecompressorOutputs().dataOutLength);
-
-
 	FILE *filePointer;
 	filePointer = fopen("lzTestFile.txt", "rb");
 	if (filePointer == NULL)
@@ -131,56 +94,17 @@ int main()
 		printf("compressor reset = %d\n", resetCompressor());
 		printf("decompressor reset = %d\n", resetDecompressor());
 
-		// This is used to iterate through all the input characters and put them into the compressor.
-		size_t currentInCharacterIndex = 0;
-		// This is used to iterate through all the output characters and put them into the output array.
-		size_t currentOutCharacterIndex = 0;
-
 		writeCycles(0);
 		writeInstructions(0);
 		size_t compressorCycleLatency = readCycles();
 		size_t compressorInstructionLatency = readInstructions();
 
-		while (currentOutCharacterIndex < CHARACTERS)
-		{
-			struct compressorOutputs compOut = readCompressorOutputs();
-			struct decompressorOutputs decompOut = readDecompressorOutputs();
+		for(size_t index = 0; index < CHARACTERS; index++){
+			writeCompressorInputs(inCharacterArray[index]);
+		}
 
-			// Feed in the next character to the compressor input
-			if (compOut.inReady && currentInCharacterIndex < CHARACTERS)
-			{
-#if DEBUG
-				printf("Inputting %d to compressor\n", inCharacterArray[currentInCharacterIndex]);
-#endif
-				writeCompressorInputs(false, true, false, inCharacterArray[currentInCharacterIndex]);
-				currentInCharacterIndex++;
-			}
-			else if (compOut.outValid && decompOut.inReady)
-			{
-#if DEBUG
-				printf("compressor out and decompressor input is %d\n", compOut.outBits);
-#endif
-				writeCompressorInputs(false, false, true, 0);
-				writeDecompressorInputs(true, false, compOut.outBits);
-			}
-			else if (currentInCharacterIndex >= CHARACTERS && !compOut.outValid && decompOut.inReady)
-			{
-				// This moves the compressor into the "stopSignalReceived" state where it outputs any remaining characters
-				// in its buffer.
-				writeCompressorInputs(true, false, false, 0);
-			}
-			else if (decompOut.outValid)
-			{
-#if DEBUG
-				printf("decompressor output is valid, outputting bits %d of dataOutLength %d\n", decompOut.outBits, decompOut.dataOutLength);
-#endif
-				writeDecompressorInputs(false, true, 0);
-				for (size_t index = 0; index < decompOut.dataOutLength; index++)
-				{
-					outCharacterArray[currentOutCharacterIndex] = decompOut.outBits >> (CHARACTER_BITS * (decompOut.dataOutLength - 1 - index));
-					currentOutCharacterIndex++;
-				}
-			}
+		for(size_t index = 0; index < CHARACTERS; index++){
+			outCharacterArray[index] = readCompressorOutputs();
 		}
 
 		compressorCycleLatency = readCycles() - compressorCycleLatency;
