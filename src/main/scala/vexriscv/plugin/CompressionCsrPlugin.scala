@@ -80,10 +80,10 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       val compressorOutputAccessIndex = Reg(UInt(14 bits))
       val decompressorOutputAccessIndex = Reg(UInt(14 bits))
       // These registers are used as buffers for the compressors and decompressors to compute values faster.
-      val compressorInputBuffer = Reg(Vec(UInt(8 bits), byteNumber))
-      val compressorOutputBuffer = Reg(Vec(UInt(9 bits), byteNumber))
-      val decompressorInputBuffer = Reg(Vec(UInt(9 bits), byteNumber))
-      val decompressorOutputBuffer = Reg(Vec(UInt(16 bits), byteNumber))
+      val compressorInputBuffer = Mem(UInt(8 bits), byteNumber)
+      val compressorOutputBuffer = Mem(UInt(9 bits), byteNumber)
+      val decompressorInputBuffer = Mem(UInt(9 bits), byteNumber)
+      val decompressorOutputBuffer = Mem(UInt(16 bits), byteNumber)
 
       cycleCounter := cycleCounter + 1
       when(writeBack.arbitration.isFiring) {
@@ -92,19 +92,18 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
 
       val compressor = new lzCompressNew
       // This takes care of writing the data to the compressor input buffer.
-      when(writeCompressorInputs && compressorInputIndex < byteNumber)){
-        compressorInputBuffer(compressorInputIndex) := compressorInputs
+      when(writeCompressorInputs && compressorInputIndex < byteNumber){
+        compressorInputBuffer.write(compressorInputIndex(11 downto 0), compressorInputs)
         compressorInputIndex := compressorInputIndex + 1
       }
 
       // This takes care of inputting data from the compressor input buffer into the compressor itself
       compressor.io.io_stop <> Bool(false)
       compressor.io.io_in_valid <> Bool(false)
-      compressor.io.io_out_ready <> Bool(true)
       compressor.io.io_in_bits <> 0
       when(compressorInputIndex > compressorInputAccessIndex && compressorInputAccessIndex < byteNumber){
         compressor.io.io_in_valid <> Bool(true)
-        compressor.io.io_in_bits <> compressorInputBuffer(compressorInputAccessIndex)
+        compressor.io.io_in_bits := compressorInputBuffer(compressorInputAccessIndex(11 downto 0))
         when(compressor.io.io_in_ready){
           compressorInputAccessIndex := compressorInputAccessIndex + 1
         }
@@ -113,28 +112,27 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       // This takes care of getting output data from compressor and putting into the output buffer.
       compressor.io.io_out_ready <> Bool(true)
       when(compressor.io.io_out_valid){
-        compressorInputBuffer(compressorOutputAccessIndex) := compressor.io.io_out_bits
+        compressorInputBuffer(compressorOutputAccessIndex(11 downto 0)) := compressor.io.io_out_bits
         compressorOutputAccessIndex := compressorOutputAccessIndex + 1
       }
 
       // This sets the compressor output to the current index in the output buffer
-      compressorOutputs := compressorOutputBuffer(compressorOutputIndex)
+      compressorOutputs := compressorOutputBuffer(compressorOutputIndex(11 downto 0))
       compressorResetSignal <> compressor.io.reset
 
       val decompressor = new lzDecompressNew
       // This takes care of writing the data to the decompressor input buffer.
-      when(writeDecompressorInputs && decompressorOutputIndex < byteNumber)){
-        decompressorInputBuffer(decompressorInputIndex) := decompressorInputs
+      when(writeDecompressorInputs && decompressorOutputIndex < byteNumber){
+        decompressorInputBuffer(decompressorInputIndex(11 downto 0)) := decompressorInputs
         decompressorInputIndex := decompressorInputIndex + 1
       }
 
       // This takes care of inputting data from the decompressor input buffer into the decompressor itself
       decompressor.io.io_in_valid <> Bool(false)
-      decompressor.io.io_out_ready <> Bool(true)
       decompressor.io.io_in_bits <> 0
       when(decompressorInputIndex > decompressorInputAccessIndex && decompressorInputAccessIndex < byteNumber){
         decompressor.io.io_in_valid <> Bool(true)
-        decompressor.io.io_in_bits <> decompressorInputBuffer(decompressorInputAccessIndex)
+        decompressor.io.io_in_bits := decompressorInputBuffer(decompressorInputAccessIndex(11 downto 0))
         when(decompressor.io.io_in_ready){
           decompressorInputAccessIndex := decompressorInputAccessIndex + 1
         }
@@ -143,12 +141,12 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       // This takes care of getting output data from decompressor and putting into the output buffer.
       decompressor.io.io_out_ready <> Bool(true)
       when(decompressor.io.io_out_valid){
-        decompressorInputBuffer(decompressorOutputAccessIndex) := decompressor.io.io_out_bits
+        decompressorInputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits
         decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
       }
 
       // This sets the decompressor output to the current index in the output buffer
-      decompressorOutputs := decompressorOutputBuffer(decompressorOutputIndex)
+      decompressorOutputs := decompressorOutputBuffer(decompressorOutputIndex(11 downto 0))
       decompressorResetSignal <> decompressor.io.reset
 
 
