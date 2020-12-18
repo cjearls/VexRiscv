@@ -84,6 +84,9 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       val compressorOutputBuffer = Mem(UInt(9 bits), byteNumber)
       val decompressorInputBuffer = Mem(UInt(9 bits), byteNumber)
       val decompressorOutputBuffer = Mem(UInt(8 bits), byteNumber)
+      // SpinalHDL is stupid and has never heard of a Vec of Registers that you can index with a different register, so I have to work around the stupid 
+      // Mem construct by adding this state machine that allows for two simultaneous bytes of decompressor output to be handled by the decompressorOutputBuffer.
+      val firstDecompressorByteStored = Reg(Bool)
 
       cycleCounter := cycleCounter + 1
       when(writeBack.arbitration.isFiring) {
@@ -145,9 +148,19 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
           decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits(7 downto 0)
           decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
         }.elsewhen(decompressor.io.io_dataOutLength === 2){
-          decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits(15 downto 8)
-          decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0) + 1) := decompressor.io.io_out_bits(7 downto 0)
-          decompressorOutputAccessIndex := decompressorOutputAccessIndex + 2
+          when(!firstDecompressorByteStored){
+            // Don't let this transition out of this state on the first go.
+            decompressor.io.io_out_ready <> Bool(false)
+            decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits(15 downto 8)
+            decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
+            firstDecompressorByteStored := Bool(true)
+          }.otherwise{
+            // The out_ready is not being held to false, so it will go back to true, and the state machine will go to the next output.
+            decompressor.io.io_out_ready <> Bool(true)
+            decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits(7 downto 0)
+            decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
+            firstDecompressorByteStored := Bool(false)
+          }
         }
       }
 
@@ -211,6 +224,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
         decompressorOutputIndex := 0
         decompressorInputAccessIndex := 0
         decompressorOutputAccessIndex := 0
+        firstDecompressorByteStored := Bool(false)
         decompressorResetSignal := Bool(true) 
       }
     }
