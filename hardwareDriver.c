@@ -80,6 +80,7 @@ int main()
 	}
 
 	char inCharacterArray[CHARACTERS];
+	size_t intermediateCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
 	size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
 	/*while (readBytes == CHARACTERS)
@@ -104,13 +105,31 @@ int main()
 		}
 
 		for(size_t index = 0; index < CHARACTERS; index++){
-			outCharacterArray[index] = readCompressorOutputs();
+			intermediateCharacterArray[index] = readCompressorOutputs();
 		}
 
 		compressorCycleLatency = readCycles() - compressorCycleLatency;
 		compressorInstructionLatency = readInstructions() - compressorInstructionLatency;
 
 		printf("compressor cycle latency was %d, and instruction latency was %d\n", compressorCycleLatency, compressorInstructionLatency);
+
+		writeCycles(0);
+		writeInstructions(0);
+		size_t decompressorCycleLatency = readCycles();
+		size_t decompressorInstructionLatency = readInstructions();
+
+		for(size_t index = 0; index < CHARACTERS; index++){
+			writeDecompressorInputs(intermediateCharacterArray[index]);
+		}
+
+		for(size_t index = 0; index < CHARACTERS; index++){
+			outCharacterArray[index] = readDecompressorOutputs();
+		}
+
+		decompressorCycleLatency = readCycles() - decompressorCycleLatency;
+		decompressorInstructionLatency = readInstructions() - decompressorInstructionLatency;
+
+		printf("decompressor cycle latency was %d, and instruction latency was %d\n", decompressorCycleLatency, decompressorInstructionLatency);
 
 		// This checks if the input equals the output, and prints if they are unequal.
 		for (size_t index = 0; index < CHARACTERS; index++)

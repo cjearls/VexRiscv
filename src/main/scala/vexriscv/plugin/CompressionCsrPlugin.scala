@@ -173,6 +173,9 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       }
       // This allows reading the decompressor's outputs.
       csrService.r(0xCFF, decompressorOutputs)
+      csrService.onRead(0xCFE){
+        decompressorOutputIndex := decompressorOutputIndex + 1
+      }
 
       // This allows for reading and writing to the instruction counter and cycle counter respectively.
       csrService.rw(0x8FE, instructionCounter)
