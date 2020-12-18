@@ -82,8 +82,8 @@ int main()
 	char inCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
 	size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
-	while (readBytes == CHARACTERS)
-	{
+	/*while (readBytes == CHARACTERS)
+	{*/
 		// This sets the output array to all incorrect values so it will be obvious if a value isn't written or is written
 		// wrong later when the check is done.
 		for (size_t index = 0; index < CHARACTERS; index++)
@@ -120,9 +120,9 @@ int main()
 				printf("Array index %d does not match: in=%d, out=%d\n", index, inCharacterArray[index], outCharacterArray[index]);
 			}
 		}
-
+/*
 		size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
-	}
+	}*/
 
 	fclose(filePointer);
 

@@ -112,7 +112,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       // This takes care of getting output data from compressor and putting into the output buffer.
       compressor.io.io_out_ready <> Bool(true)
       when(compressor.io.io_out_valid){
-        compressorInputBuffer(compressorOutputAccessIndex(11 downto 0)) := compressor.io.io_out_bits
+        compressorOutputBuffer(compressorOutputAccessIndex(11 downto 0)) := compressor.io.io_out_bits
         compressorOutputAccessIndex := compressorOutputAccessIndex + 1
       }
 
@@ -141,7 +141,7 @@ class CompressionCsrPlugin extends Plugin[VexRiscv]{
       // This takes care of getting output data from decompressor and putting into the output buffer.
       decompressor.io.io_out_ready <> Bool(true)
       when(decompressor.io.io_out_valid){
-        decompressorInputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits
+        decompressorOutputBuffer(decompressorOutputAccessIndex(11 downto 0)) := decompressor.io.io_out_bits
         decompressorOutputAccessIndex := decompressorOutputAccessIndex + 1
       }
 
