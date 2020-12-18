@@ -80,10 +80,11 @@ int main()
 		return -1;
 	}
 
-	char inCharacterArray[CHARACTERS];
+	// This reads in 4096 bytes from a file into inCharacterArray
+	int32_t inCharacterArray[CHARACTERS];
 	int16_t intermediateCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
-	size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
+	size_t readBytes = fread(inCharacterArray, 4, CHARACTERS/4, filePointer);
 	/*while (readBytes == CHARACTERS)
 	{*/
 		// This sets the output array to all incorrect values so it will be obvious if a value isn't written or is written
@@ -133,9 +134,9 @@ int main()
 		printf("decompressor cycle latency was %d, and instruction latency was %d\n", decompressorCycleLatency, decompressorInstructionLatency);
 
 		// This checks if the input equals the output, and prints if they are unequal.
-		for (size_t index = 0; index < CHARACTERS; index++)
+		for (size_t index = 0; index < CHARACTERS/4; index++)
 		{
-			if (inCharacterArray[index] != outCharacterArray[index])
+			if (inCharacterArray[index] != ((outCharacterArray[index]<<(3*CHARACTER_BITS)) | (outCharacterArray[index+1]<<(2*CHARACTER_BITS)) | (outCharacterArray[index+2]<<(1*CHARACTER_BITS)) | (outCharacterArray[index+3]<<0)))
 			{
 				printf("Array index %d does not match: in=%d, out=%d\n", index, inCharacterArray[index], outCharacterArray[index]);
 			}
