@@ -33,7 +33,7 @@ case class ArgConfig(
   externalInterruptArray : Boolean = true,
   resetVector : BigInt = null,
   machineTrapVector : BigInt = null,
-  prediction : BranchPrediction = STATIC,
+  prediction : BranchPrediction = DYNAMIC_TARGET,
   outputFile : String = "VexRiscv",
   csrPluginConfig : String = "small",
   dBusCachedRelaxedMemoryTranslationRegister : Boolean = false,

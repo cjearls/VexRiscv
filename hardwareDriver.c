@@ -147,7 +147,7 @@ int main()
 			}
 		}
 
-		size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
+		size_t readBytes = fread(inCharacterArray, COMPRESSOR_WRITE_BYTES, CHARACTERS/COMPRESSOR_WRITE_BYTES, filePointer);
 	}
 
 	fclose(filePointer);
