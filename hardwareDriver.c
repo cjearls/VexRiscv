@@ -5,6 +5,7 @@
 
 #define CHARACTERS 4096
 #define CHARACTER_BITS 8
+#define COMPRESSOR_WRITE_BYTES 4 // This is the number of bytes that can be written to the compressor in a single go.
 #define DEBUG true
 
 static inline void writeCompressorInputs(size_t inBits)
@@ -81,12 +82,12 @@ int main()
 	}
 
 	// This reads in 4096 bytes from a file into inCharacterArray
-	int32_t inCharacterArray[CHARACTERS];
+	int32_t inCharacterArray[CHARACTERS / COMPRESSOR_WRITE_BYTES];
 	int16_t intermediateCharacterArray[CHARACTERS];
 	char outCharacterArray[CHARACTERS];
-	size_t readBytes = fread(inCharacterArray, 4, CHARACTERS/4, filePointer);
-	/*while (readBytes == CHARACTERS)
-	{*/
+	size_t readBytes = fread(inCharacterArray, COMPRESSOR_WRITE_BYTES, CHARACTERS / COMPRESSOR_WRITE_BYTES, filePointer);
+	while (readBytes == CHARACTERS/COMPRESSOR_WRITE_BYTES)
+	{
 		// This sets the output array to all incorrect values so it will be obvious if a value isn't written or is written
 		// wrong later when the check is done.
 		for (size_t index = 0; index < CHARACTERS; index++)
@@ -102,11 +103,13 @@ int main()
 		size_t compressorCycleLatency = readCycles();
 		size_t compressorInstructionLatency = readInstructions();
 
-		for(size_t index = 0; index < CHARACTERS/4; index++){
+		for (size_t index = 0; index < CHARACTERS / COMPRESSOR_WRITE_BYTES; index++)
+		{
 			writeCompressorInputs(inCharacterArray[index]);
 		}
 
-		for(size_t index = 0; index < CHARACTERS; index++){
+		for (size_t index = 0; index < CHARACTERS; index++)
+		{
 			intermediateCharacterArray[index] = readCompressorOutputs();
 		}
 
@@ -120,11 +123,13 @@ int main()
 		size_t decompressorCycleLatency = readCycles();
 		size_t decompressorInstructionLatency = readInstructions();
 
-		for(size_t index = 0; index < CHARACTERS; index++){
+		for (size_t index = 0; index < CHARACTERS; index++)
+		{
 			writeDecompressorInputs(intermediateCharacterArray[index]);
 		}
 
-		for(size_t index = 0; index < CHARACTERS; index++){
+		for (size_t index = 0; index < CHARACTERS; index++)
+		{
 			outCharacterArray[index] = readDecompressorOutputs();
 		}
 
@@ -134,16 +139,16 @@ int main()
 		printf("decompressor cycle latency was %d, and instruction latency was %d\n", decompressorCycleLatency, decompressorInstructionLatency);
 
 		// This checks if the input equals the output, and prints if they are unequal.
-		for (size_t index = 0; index < CHARACTERS/4; index++)
+		for (size_t index = 0; index < CHARACTERS / COMPRESSOR_WRITE_BYTES; index++)
 		{
-			if (inCharacterArray[index] != ((outCharacterArray[index*4]<<(3*CHARACTER_BITS)) | (outCharacterArray[index*4+1]<<(2*CHARACTER_BITS)) | (outCharacterArray[index*4+2]<<(1*CHARACTER_BITS)) | (outCharacterArray[index*4+3]<<0)))
+			if (inCharacterArray[index] != ((outCharacterArray[index * COMPRESSOR_WRITE_BYTES] << (3 * CHARACTER_BITS)) | (outCharacterArray[index * COMPRESSOR_WRITE_BYTES + 1] << (2 * CHARACTER_BITS)) | (outCharacterArray[index * COMPRESSOR_WRITE_BYTES + 2] << (1 * CHARACTER_BITS)) | (outCharacterArray[index * COMPRESSOR_WRITE_BYTES + 3] << 0)))
 			{
-				printf("Array index %d does not match: in=%X, out=%X\n", index, inCharacterArray[index], ((outCharacterArray[index*4]<<(3*CHARACTER_BITS)) | (outCharacterArray[index*4+1]<<(2*CHARACTER_BITS)) | (outCharacterArray[index*4+2]<<(1*CHARACTER_BITS)) | (outCharacterArray[index*4+3]<<0)));
+				printf("Array index %d does not match: in=%X, out=%X\n", index, inCharacterArray[index], ((outCharacterArray[index * COMPRESSOR_WRITE_BYTES] << (3 * CHARACTER_BITS)) | (outCharacterArray[index * COMPRESSOR_WRITE_BYTES + 1] << (2 * CHARACTER_BITS)) | (outCharacterArray[index * COMPRESSOR_WRITE_BYTES + 2] << (1 * CHARACTER_BITS)) | (outCharacterArray[index * COMPRESSOR_WRITE_BYTES + 3] << 0)));
 			}
 		}
-/*
+
 		size_t readBytes = fread(inCharacterArray, 1, CHARACTERS, filePointer);
-	}*/
+	}
 
 	fclose(filePointer);
 
